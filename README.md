@@ -1,4 +1,4 @@
-# dynogels
+﻿# dynogels
 [![Build Status](https://travis-ci.org/clarkie/dynogels.png?branch=master)](https://travis-ci.org/clarkie/dynogels)
 [![Coverage Status](https://coveralls.io/repos/github/clarkie/dynogels/badge.svg)](https://coveralls.io/github/clarkie/dynogels)
 [![npm version](https://badge.fury.io/js/dynogels.svg)](http://badge.fury.io/js/dynogels)
@@ -12,7 +12,7 @@ Dynogels is a [DynamoDB][5] data mapper for [node.js][1]. This project has been 
 ## Features
 * Simplified data modeling and mapping to DynamoDB types
 * Advanced chainable apis for [query](#query) and [scan](#scan) operations
-* Data validation
+* [Data validation](#data-validation)
 * [Autogenerating UUIDs](#uuid)
 * [Global Secondary Indexes](#global-indexes)
 * [Local Secondary Indexes](#local-secondary-indexes)
@@ -117,6 +117,7 @@ var BlogPost = dynogels.define('BlogPost', {
 });
 ```
 
+
 ### Create Tables for all defined models
 
 ```js
@@ -124,7 +125,7 @@ dynogels.createTables(function(err) {
   if (err) {
     console.log('Error creating tables: ', err);
   } else {
-    console.log('Tables has been created');
+    console.log('Tables have been created');
   }
 });
 ```
@@ -135,11 +136,11 @@ When creating tables you can pass specific throughput settings or stream specifi
 dynogels.createTables({
   'BlogPost': {readCapacity: 5, writeCapacity: 10},
   'Account': {
-    readCapacity: 20, 
-    writeCapacity: 4, 
-    streamSpecification: { 
-      streamEnabled: true, 
-      streamViewType: 'NEW_IMAGE' 
+    readCapacity: 20,
+    writeCapacity: 4,
+    streamSpecification: {
+      streamEnabled: true,
+      streamViewType: 'NEW_IMAGE'
     }
   }
 }, function(err) {
@@ -179,6 +180,15 @@ BlogPost.deleteTable(function(err) {
 });
 ```
 
+### Get Dynamo API Parameters
+You can get the raw parameters needed for the DynamoDB [CreateTable API](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_CreateTable.html):
+
+```js
+var parameters = BlogPost.dynamoCreateTableParams();
+var dynamodb = new AWS.DynamoDB();
+dynamodb.createTable(params, (err)=>{ ... });
+```
+
 ### Schema Types
 Vogels provides the following schema types:
 
@@ -205,6 +215,28 @@ var Tweet = dynogels.define('Tweet', {
     content : Joi.string(),
   }
 });
+```
+
+#### Data Validation
+Dynogels automatically validates the model against the schema before attempting to save it, but you can also call the `validate` method to validate an object before saving it. This can be helpful for a handler to validate input.
+
+```js
+var Tweet = dynogels.define('Tweet', {
+  hashKey : 'TweetID',
+  timestamps : true,
+  schema : {
+    TweetID : dynogels.types.uuid(),
+    content : Joi.string(),
+  }
+});
+
+const tweet = new Tweet({ content: 123 })
+const fail_result = Tweet.validate(tweet)
+console.log(fail_result.error.name) // ValidationError
+
+tweet.set('content', 'This is the content')
+const pass_result = Tweet.validate(tweet)
+console.log(pass_result.error) // null
 ```
 
 ### Configuration
@@ -608,7 +640,7 @@ BlogPost
   .query('werner@example.com')
   .where('title').beginsWith('Expanding')
   .exec(callback);
-  
+
 // return only the count of documents that begin with the title Expanding
 BlogPost
   .query('werner@example.com')
@@ -1121,20 +1153,28 @@ var Event = dynogels.define('Event', {
 ```
 
 ### Logging
-A logger that implements `info` and `warn` methods (e.g [Bunyan](https://www.npmjs.com/package/bunyan) or [Winston](https://www.npmjs.com/package/winston))
-can be provided to either dynogels itself or individual models:
+A [Bunyan](https://www.npmjs.com/package/bunyan) logger instance can be provided to either dynogels itself or individual models.  Dynogels requests are logged at the `info` level.
+Other loggers that implement `info` and `warn` methods can also be used. However, [Winston](https://www.npmjs.com/package/winston) uses a different parameter signature than bunyan so the log messages are improperly formatted when using Winston.
 
 ```js
-const logger = require('winston');
-logger.level = 'warn';
+const bunyan = require('bunyan');
+const logger = bunyan.createLogger(
+  {
+    name: 'globalLogger',
+    level:'info'
+  })
 
-dynogels.log = logger;  // enabled WARN log level on all tables
+dynogels.log = logger;
 ```
 
 
 ```js
-const accountLogger = require('winston');
-accountLogger.level = 'info';
+const bunyan = require('bunyan');
+const accountLogger = bunyan.createLogger(
+  {
+    name: 'modelLogger',
+    level:'info'
+  })
 
 var Account = dynogels.define('Account', {
   hashKey: 'email',
